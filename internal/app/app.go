@@ -271,7 +271,7 @@ func (app *XScript) getConfigDir() string {
 // 添加日志到界面
 func (app *XScript) appendLog(message string) {
 	if app.logView != nil {
-		app.logView.AppendText(message + "\n")
+		app.logView.AppendText(message + "\r\n")
 	}
 }
 
@@ -344,11 +344,22 @@ func (app *XScript) showScriptList() {
 func (app *XScript) runScript() {
 	keyword := app.searchBox.Text()
 	scripts := app.scripts.Search(keyword)
-	if len(scripts) > 0 {
-		if err := app.scripts.Execute(scripts[0]); err != nil {
-			app.logger.WithError(err).Error("Failed to execute script")
-		}
+
+	if len(scripts) == 0 {
+		app.appendLog("No matching script found")
+		return
 	}
+
+	script := scripts[0]
+	app.appendLog(fmt.Sprintf("Executing script: %s\n", script.Name))
+
+	if err := app.scripts.Execute(script); err != nil {
+		app.logger.WithError(err).Error("Failed to execute script")
+		app.appendLog(fmt.Sprintf("Error executing script: %v\n", err))
+		return
+	}
+
+	app.appendLog("Script execution completed successfully\n")
 }
 
 func getMousePosition() walk.Point {

@@ -26,8 +26,8 @@ type AppConfig struct {
 }
 
 var DefaultConfig = AppConfig{
-	WindowWidth:  600,
-	WindowHeight: 400,
+	WindowWidth:  300,
+	WindowHeight: 200,
 	PythonPath:   "python",
 	ScriptsDir:   "scripts",
 	LogFile:      "logs/x-script.log",
