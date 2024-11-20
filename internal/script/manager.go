@@ -131,8 +131,11 @@ func (m *Manager) Execute(script Script, callback OutputCallback) error {
 
 	// 等待命令完成
 	go func() {
-		if err := cmd.Wait(); err != nil {
+		err := cmd.Wait()
+		if err != nil {
 			outputChan <- fmt.Sprintf("Script execution failed: %v", err)
+		} else {
+			outputChan <- fmt.Sprintf("Script '%s' completed successfully", script.Name)
 		}
 		close(outputChan)
 	}()

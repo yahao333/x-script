@@ -5,6 +5,12 @@
             "path": "hello.py",
             "description": "一个简单的测试脚本",
             "keywords": "test, hello"
+        },
+        {
+            "name": "test2",
+            "path": "demo.py",
+            "description": "一个简单的测试脚本",
+            "keywords": "test2, demo"
         }
     ]
 }
