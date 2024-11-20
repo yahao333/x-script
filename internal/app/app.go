@@ -3,9 +3,13 @@ package app
 import (
 	"fmt"
 	"path/filepath"
+	"syscall"
+	"time"
+	"unsafe"
 
 	"github.com/lxn/walk"
 	. "github.com/lxn/walk/declarative"
+	"github.com/lxn/win"
 
 	"github.com/yahao333/x-script/internal/script"
 	"github.com/yahao333/x-script/internal/utils"
@@ -35,6 +39,13 @@ func New(cfg *config.AppConfig, log *logger.Logger) *XScript {
 
 func (app *XScript) Run() error {
 	app.logger.Info("Starting application initialization")
+
+	// Load scripts first
+	if err := app.scripts.Load(); err != nil {
+		app.logger.WithError(err).Error("Failed to load scripts")
+		return err
+	}
+	app.logger.Debug("Scripts loaded successfully")
 
 	// 创建主窗口
 	if err := app.createMainWindow(); err != nil {
@@ -188,7 +199,7 @@ func (app *XScript) createNotifyIcon() error {
 	showAction.SetText("&Show")
 	showAction.Triggered().Attach(func() {
 		app.logger.Debug("Showing main window")
-		app.window.Show()
+		app.notifyIcon.SetVisible(true)
 	})
 	menu.Actions().Add(showAction)
 
@@ -209,15 +220,46 @@ func (app *XScript) createNotifyIcon() error {
 }
 
 func (app *XScript) registerHotkey() error {
-	// Register the hotkey for Ctrl key
-	// if err := walk.RegisterGlobalHotkey(app.window, walk.ModControl, walk.KeyC, func() {
-	// 	app.logger.Debug("Global hotkey triggered")
-	// 	app.window.Show()
-	// }); err != nil {
-	// 	app.logger.WithError(err).Error("Failed to register global hotkey")
-	// 	return err
-	// }
-	// app.logger.Info("Global hotkey registered")
+	// Define a hotkey ID
+	const hotkeyID = 1
+	// Define MOD_CONTROL constant
+	const MOD_CONTROL = 0x0002
+	// Define VK_C constant
+	const VK_C = 0x43
+	const VK_A = 0x41
+	// Define VK_CONTROL constant
+	const VK_CONTROL = 0x11
+
+	// Register the hotkey for Ctrl+C
+	if !registerHotKey(syscall.Handle(app.window.Handle()), hotkeyID, MOD_CONTROL, VK_CONTROL) {
+		err := syscall.GetLastError()
+		app.logger.WithError(err).Error("Failed to register global hotkey")
+		return err
+	}
+
+	// Listen for hotkey messages
+	go func() {
+		var msg win.MSG
+		var lastPressTime int64
+		const doublePressInterval = 500 // milliseconds
+
+		for {
+			win.GetMessage(&msg, 0, 0, 0)
+			if msg.Message == win.WM_HOTKEY && msg.WParam == uintptr(hotkeyID) {
+				app.logger.Debug("Global hotkey triggered")
+				currentTime := time.Now().UnixMilli()
+				if currentTime-lastPressTime <= doublePressInterval {
+					app.logger.Debug("Double Ctrl key pressed")
+					app.window.Show()
+				}
+				lastPressTime = currentTime
+			}
+			win.TranslateMessage(&msg)
+			win.DispatchMessage(&msg)
+		}
+	}()
+
+	app.logger.Info("Global hotkey registered")
 	return nil
 }
 
@@ -251,27 +293,52 @@ func (app *XScript) showAbout() {
 }
 
 func (app *XScript) showScriptList() {
-	// app.logger.Debug("Showing script list")
+	app.logger.Debug("Showing script list")
 
-	// // Create a menu for the script list
-	// menu, err := walk.NewMenu()
-	// if err != nil {
-	// 	app.logger.WithError(err).Error("Failed to create script list menu")
-	// 	return
-	// }
+	// Create a popup menu using Windows API
+	hMenu := win.CreatePopupMenu()
+	if hMenu == 0 {
+		app.logger.Error("Failed to create popup menu")
+		return
+	}
+	defer win.DestroyMenu(hMenu)
 
-	// for _, script := range app.scripts.scripts {
-	// 	action := walk.NewAction()
-	// 	action.SetText(script.Name)
-	// 	action.Triggered().Attach(func() {
-	// 		app.searchBox.SetText(script.Name)
-	// 	})
-	// 	menu.Actions().Add(action)
-	// }
+	// Add menu items
+	scripts := app.scripts.GetScripts()
+	for i, script := range scripts {
+		// Convert string to UTF16 for Windows API
+		text, _ := syscall.UTF16PtrFromString(script.Name)
+		app.logger.Debugf("Appending menu item: %s", script.Name)
+		if !appendMenu(hMenu, win.MF_STRING, uint32(i+1), text) {
+			app.logger.WithField("script", script.Name).Error("Failed to append menu item")
+			continue
+		}
+	}
 
-	// // Show the menu at the current mouse position
-	// pos := walk.MouseCursorPos()
-	// menu.Popup(app.window, pos)
+	// Get the position of the search box
+	bounds := app.searchBox.Bounds()
+
+	// Convert client coordinates to screen coordinates
+	var point win.POINT
+	point.X = int32(bounds.X + 10)
+	point.Y = int32(bounds.Y + bounds.Height + 10)
+	win.ClientToScreen(win.HWND(app.window.Handle()), &point)
+
+	// Show the popup menu
+	cmd := win.TrackPopupMenu(
+		hMenu,
+		win.TPM_LEFTALIGN|win.TPM_TOPALIGN|win.TPM_RETURNCMD,
+		point.X,
+		point.Y,
+		0,
+		win.HWND(app.window.Handle()),
+		nil,
+	)
+
+	// Handle menu selection
+	if cmd > 0 && int(cmd) <= len(scripts) {
+		app.searchBox.SetText(scripts[cmd-1].Name)
+	}
 }
 
 func (app *XScript) runScript() {
@@ -282,4 +349,34 @@ func (app *XScript) runScript() {
 			app.logger.WithError(err).Error("Failed to execute script")
 		}
 	}
+}
+
+func getMousePosition() walk.Point {
+	var pt win.POINT
+	win.GetCursorPos(&pt)
+	return walk.Point{X: int(pt.X), Y: int(pt.Y)}
+}
+
+func registerHotKey(hwnd syscall.Handle, id int, mod, vk uint) bool {
+	user32 := syscall.NewLazyDLL("user32.dll")
+	registerHotKey := user32.NewProc("RegisterHotKey")
+	ret, _, _ := registerHotKey.Call(
+		uintptr(hwnd),
+		uintptr(id),
+		uintptr(mod),
+		uintptr(vk),
+	)
+	return ret != 0
+}
+
+func appendMenu(hMenu win.HMENU, flags uint32, id uint32, text *uint16) bool {
+	user32 := syscall.NewLazyDLL("user32.dll")
+	appendMenu := user32.NewProc("AppendMenuW")
+	ret, _, _ := appendMenu.Call(
+		uintptr(hMenu),
+		uintptr(flags),
+		uintptr(id),
+		uintptr(unsafe.Pointer(text)),
+	)
+	return ret != 0
 }

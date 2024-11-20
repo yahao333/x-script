@@ -40,6 +40,7 @@ func (m *Manager) Load() error {
 
 	// 读取 scripts.json
 	configPath := filepath.Join(m.config.ScriptsDir, "scripts.json")
+
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return fmt.Errorf("read scripts config failed: %w", err)
@@ -96,4 +97,8 @@ func (m *Manager) Execute(script Script) error {
 
 	m.logger.Info(string(output))
 	return nil
+}
+
+func (m *Manager) GetScripts() []Script {
+	return m.scripts
 }
