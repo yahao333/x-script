@@ -112,22 +112,11 @@ func (m *Manager) Execute(script Script, callback OutputCallback) error {
 
 	// 创建一个通道来接收输出
 	outputChan := make(chan string)
-	// 处理输出的goroutine
-	go func() {
-		for output := range outputChan {
-			// 记录到日志
-			m.logger.Info(output)
-			// 调用回调函数处理输出
-			if callback != nil {
-				callback(output)
-			}
-		}
-	}()
+
 	// 处理标准输出
 	go func() {
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
-			fmt.Printf("[STDOUT] %s\n", scanner.Text())
 			outputChan <- scanner.Text()
 		}
 	}()
@@ -136,7 +125,6 @@ func (m *Manager) Execute(script Script, callback OutputCallback) error {
 	go func() {
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
-			fmt.Printf("[STDERR] %s\n", scanner.Text())
 			outputChan <- "ERROR: " + scanner.Text()
 		}
 	}()
@@ -144,12 +132,20 @@ func (m *Manager) Execute(script Script, callback OutputCallback) error {
 	// 等待命令完成
 	go func() {
 		if err := cmd.Wait(); err != nil {
-			fmt.Printf("Command finished with error: %v\n", err)
 			outputChan <- fmt.Sprintf("Script execution failed: %v", err)
 		}
 		close(outputChan)
 	}()
 
+	// 修改输出处理部分
+	for output := range outputChan {
+		// 记录到日志
+		m.logger.Info(output)
+		// 调用回调函数处理输出
+		if callback != nil {
+			callback(output)
+		}
+	}
 	return nil
 }
 
