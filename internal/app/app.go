@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/lxn/walk"
@@ -11,6 +12,8 @@ import (
 	"github.com/yahao333/x-script/pkg/config"
 	"github.com/yahao333/x-script/pkg/logger"
 )
+
+var showHelpAction *walk.Action
 
 type XScript struct {
 	window     *walk.MainWindow
@@ -182,7 +185,7 @@ func (app *XScript) createNotifyIcon() error {
 		return app.logger.LogError(err, "Failed to create context menu")
 	}
 	showAction := walk.NewAction()
-	showAction.SetText("Show")
+	showAction.SetText("&Show")
 	showAction.Triggered().Attach(func() {
 		app.logger.Debug("Showing main window")
 		app.window.Show()
@@ -190,7 +193,7 @@ func (app *XScript) createNotifyIcon() error {
 	menu.Actions().Add(showAction)
 
 	exitAction := walk.NewAction()
-	exitAction.SetText("Exit")
+	exitAction.SetText("&Exit")
 	exitAction.Triggered().Attach(func() {
 		app.logger.Debug("Exiting application")
 		app.window.Close()
@@ -198,6 +201,7 @@ func (app *XScript) createNotifyIcon() error {
 	menu.Actions().Add(exitAction)
 
 	for i := 0; i < menu.Actions().Len(); i++ {
+		app.logger.Debugf("Inserting action %d", i)
 		app.notifyIcon.ContextMenu().Actions().Insert(i, menu.Actions().At(i))
 	}
 
@@ -205,8 +209,15 @@ func (app *XScript) createNotifyIcon() error {
 }
 
 func (app *XScript) registerHotkey() error {
-	// TODO: 实现热键注册功能
-	app.logger.Info("Hotkey registration is not implemented yet")
+	// Register the hotkey for Ctrl key
+	// if err := walk.RegisterGlobalHotkey(app.window, walk.ModControl, walk.KeyC, func() {
+	// 	app.logger.Debug("Global hotkey triggered")
+	// 	app.window.Show()
+	// }); err != nil {
+	// 	app.logger.WithError(err).Error("Failed to register global hotkey")
+	// 	return err
+	// }
+	// app.logger.Info("Global hotkey registered")
 	return nil
 }
 
@@ -225,14 +236,42 @@ func (app *XScript) appendLog(message string) {
 // 新增的辅助方法
 func (app *XScript) handleSearch() {
 	keyword := app.searchBox.Text()
-	_ = app.scripts.Search(keyword)
+	results := app.scripts.Search(keyword)
 	app.logger.WithField("keyword", keyword).Debug("Searching scripts")
-	// TODO: 显示搜索结果
+
+	// Display search results in the log view
+	app.logView.SetText("") // Clear previous results
+	for _, script := range results {
+		app.logView.AppendText(fmt.Sprintf("Found script: %s\n", script.Name))
+	}
+}
+
+func (app *XScript) showAbout() {
+	app.logger.Debug("Showing about dialog")
 }
 
 func (app *XScript) showScriptList() {
-	// TODO: 显示脚本列表下拉框
-	app.logger.Debug("Showing script list")
+	// app.logger.Debug("Showing script list")
+
+	// // Create a menu for the script list
+	// menu, err := walk.NewMenu()
+	// if err != nil {
+	// 	app.logger.WithError(err).Error("Failed to create script list menu")
+	// 	return
+	// }
+
+	// for _, script := range app.scripts.scripts {
+	// 	action := walk.NewAction()
+	// 	action.SetText(script.Name)
+	// 	action.Triggered().Attach(func() {
+	// 		app.searchBox.SetText(script.Name)
+	// 	})
+	// 	menu.Actions().Add(action)
+	// }
+
+	// // Show the menu at the current mouse position
+	// pos := walk.MouseCursorPos()
+	// menu.Popup(app.window, pos)
 }
 
 func (app *XScript) runScript() {

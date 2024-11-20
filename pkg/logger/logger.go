@@ -88,18 +88,16 @@ func New(cfg *config.AppConfig, baseDir string, opts ...Option) (*Logger, error)
 	// 启用调用者信息
 	logger.SetReportCaller(true)
 
-	// 设置输出
-	if cfg.DebugMode {
-		logger.SetOutput(io.MultiWriter(file, os.Stdout))
-		logger.SetLevel(logrus.DebugLevel)
-	} else {
-		logger.SetOutput(file)
-		logger.SetLevel(logrus.InfoLevel)
-	}
-
-	// 使用 MultiWriter
+	// Set output
 	mw := io.MultiWriter(writers...)
 	logger.SetOutput(mw)
+
+	// Set log level based on config
+	level, err := logrus.ParseLevel(cfg.LogLevel)
+	if err != nil {
+		return nil, fmt.Errorf("invalid log level: %w", err)
+	}
+	logger.SetLevel(level)
 
 	// 应用自定义选项
 	for _, opt := range opts {

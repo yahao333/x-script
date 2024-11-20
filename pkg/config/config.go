@@ -19,6 +19,7 @@ type AppConfig struct {
 
 	// 日志配置
 	LogFile     string `json:"log_file"`
+	LogLevel    string `json:"log_level"`
 	DebugMode   bool   `json:"debug_mode"`
 	MaxLogSize  int64  `json:"max_log_size"`
 	MaxLogFiles int    `json:"max_log_files"`
@@ -30,6 +31,7 @@ var DefaultConfig = AppConfig{
 	PythonPath:   "python",
 	ScriptsDir:   "scripts",
 	LogFile:      "logs/x-script.log",
+	LogLevel:     "info",
 	DebugMode:    false,
 	MaxLogSize:   10,
 	MaxLogFiles:  3,
