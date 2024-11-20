@@ -1,0 +1,12 @@
+{
+    "window_width": 800,
+    "window_height": 600,
+    "window_x": 100,
+    "window_y": 100,
+    "python_path": "python",
+    "scripts_dir": "scripts",
+    "log_file": "logs/x-script.log",
+    "debug_mode": true,
+    "max_log_size": 10,
+    "max_log_files": 3
+}
