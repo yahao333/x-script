@@ -268,10 +268,14 @@ func (app *XScript) getConfigDir() string {
 	return filepath.Join(utils.GetAppDataDir())
 }
 
-// 添加日志到界面
-func (app *XScript) appendLog(message string) {
+// 添加日志到界面， 是否换行
+func (app *XScript) appendLog(message string, isNewLine bool) {
 	if app.logView != nil {
-		app.logView.AppendText(message + "\r\n")
+		if isNewLine {
+			app.logView.AppendText(message + "\r\n")
+		} else {
+			app.logView.AppendText(message)
+		}
 	}
 }
 
@@ -284,7 +288,8 @@ func (app *XScript) handleSearch() {
 	// Display search results in the log view
 	app.logView.SetText("") // Clear previous results
 	for _, script := range results {
-		app.logView.AppendText(fmt.Sprintf("Found script: %s\n", script.Name))
+		// app.logView.AppendText(fmt.Sprintf("Found script: %s\r\n", script.Name))
+		app.appendLog(fmt.Sprintf("Found script: %s\r\n", script.Name), true)
 	}
 }
 
@@ -346,20 +351,30 @@ func (app *XScript) runScript() {
 	scripts := app.scripts.Search(keyword)
 
 	if len(scripts) == 0 {
-		app.appendLog("No matching script found")
+		app.appendLog("No matching script found", true)
 		return
 	}
 
 	script := scripts[0]
-	app.appendLog(fmt.Sprintf("Executing script: %s\n", script.Name))
+	app.appendLog(fmt.Sprintf("Executing script: %s", script.Name), true)
 
-	if err := app.scripts.Execute(script); err != nil {
-		app.logger.WithError(err).Error("Failed to execute script")
-		app.appendLog(fmt.Sprintf("Error executing script: %v\n", err))
-		return
-	}
+	// 在新的 goroutine 中执行脚本
+	go func() {
+		// 传入回调函数来处理输出
+		err := app.scripts.Execute(script, func(output string) {
+			app.window.Synchronize(func() {
+				if app.logView != nil {
+					app.logView.AppendText(output + "\r\n")
+				}
+			})
+		})
 
-	app.appendLog("Script execution completed successfully\n")
+		if err != nil {
+			app.logger.WithError(err).Error("Failed to execute script")
+			app.appendLog(fmt.Sprintf("Error executing script: %v", err), true)
+			return
+		}
+	}()
 }
 
 func getMousePosition() walk.Point {

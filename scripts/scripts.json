@@ -1,7 +1,7 @@
 {
     "scripts": [
         {
-            "name": "Hello World ABCDABCDABCDABCDABCDABCD",
+            "name": "Hello World",
             "path": "hello.py",
             "description": "一个简单的测试脚本",
             "keywords": "test, hello"

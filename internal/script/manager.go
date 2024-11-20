@@ -1,6 +1,7 @@
 package script
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,6 +13,8 @@ import (
 	"github.com/yahao333/x-script/pkg/logger"
 )
 
+// 添加一个回调函数类型
+type OutputCallback func(string)
 type Script struct {
 	Name        string `json:"name"`
 	Path        string `json:"path"`
@@ -78,7 +81,7 @@ func (m *Manager) Search(keyword string) []Script {
 	return results
 }
 
-func (m *Manager) Execute(script Script) error {
+func (m *Manager) Execute(script Script, callback OutputCallback) error {
 	m.logger.WithFields(logger.Fields{
 		"scriptName": script.Name,
 		"scriptPath": script.Path,
@@ -89,13 +92,64 @@ func (m *Manager) Execute(script Script) error {
 		"path": script.Path,
 	}).Info("Executing script")
 
+	// 创建命令
 	cmd := exec.Command(m.config.PythonPath, filepath.Join(m.config.ScriptsDir, script.Path))
-	output, err := cmd.CombinedOutput()
+
+	// 创建管道获取输出
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return fmt.Errorf("execute script failed: %w", err)
+		return fmt.Errorf("create stdout pipe failed: %w", err)
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("create stderr pipe failed: %w", err)
 	}
 
-	m.logger.Info(string(output))
+	// 启动命令
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("start script failed: %w", err)
+	}
+
+	// 创建一个通道来接收输出
+	outputChan := make(chan string)
+	// 处理输出的goroutine
+	go func() {
+		for output := range outputChan {
+			// 记录到日志
+			m.logger.Info(output)
+			// 调用回调函数处理输出
+			if callback != nil {
+				callback(output)
+			}
+		}
+	}()
+	// 处理标准输出
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			fmt.Printf("[STDOUT] %s\n", scanner.Text())
+			outputChan <- scanner.Text()
+		}
+	}()
+
+	// 处理标准错误
+	go func() {
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			fmt.Printf("[STDERR] %s\n", scanner.Text())
+			outputChan <- "ERROR: " + scanner.Text()
+		}
+	}()
+
+	// 等待命令完成
+	go func() {
+		if err := cmd.Wait(); err != nil {
+			fmt.Printf("Command finished with error: %v\n", err)
+			outputChan <- fmt.Sprintf("Script execution failed: %v", err)
+		}
+		close(outputChan)
+	}()
+
 	return nil
 }
 
