@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -83,7 +84,17 @@ func New(cfg *config.AppConfig, baseDir string, opts ...Option) (*Logger, error)
 	}
 
 	// 设置默认格式化器
-	logger.SetFormatter(&customFormatter{})
+	// logger.SetFormatter(&customFormatter{})
+	logger.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: "2006-01-02 15:04:05.000",
+		DisableColors:   true,
+		DisableQuote:    true,
+		CallerPrettyfier: func(f *runtime.Frame) (string, string) {
+			filename := filepath.Base(f.File)
+			return fmt.Sprintf("%s:%d", filename, f.Line), ""
+		},
+	})
 
 	// 启用调用者信息
 	logger.SetReportCaller(true)
