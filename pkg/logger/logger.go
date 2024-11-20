@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -31,9 +30,36 @@ type Fields = logrus.Fields
 // Option 定义logger的配置选项
 type Option func(*Logger)
 
+type customFormatter struct {
+	logrus.TextFormatter
+}
+
+func (f *customFormatter) Format(entry *logrus.Entry) ([]byte, error) {
+	// 获取调用信息
+	var caller string
+	if entry.HasCaller() {
+		caller = fmt.Sprintf("%s:%d", filepath.Base(entry.Caller.File), entry.Caller.Line)
+	}
+
+	// 格式化时间
+	timestamp := entry.Time.Format("2006-01-02 15:04:05.000")
+
+	// 构建日志消息
+	msg := fmt.Sprintf("time=%s level=%s %s msg=%s\n",
+		timestamp,
+		entry.Level,
+		caller,
+		entry.Message)
+
+	return []byte(msg), nil
+}
+
 // New 创建新的日志实例
 func New(cfg *config.AppConfig, baseDir string, opts ...Option) (*Logger, error) {
 	logPath := filepath.Join(baseDir, cfg.LogFile)
+
+	// 创建一个多写入器，同时写入文件和控制台
+	writers := []io.Writer{os.Stdout} // 添加标准输出
 
 	// 确保日志目录存在
 	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
@@ -46,6 +72,8 @@ func New(cfg *config.AppConfig, baseDir string, opts ...Option) (*Logger, error)
 		return nil, fmt.Errorf("open log file failed: %w", err)
 	}
 
+	writers = append(writers, file)
+
 	// 创建logger实例
 	logger := &Logger{
 		Logger:     logrus.New(),
@@ -55,15 +83,7 @@ func New(cfg *config.AppConfig, baseDir string, opts ...Option) (*Logger, error)
 	}
 
 	// 设置默认格式化器
-	logger.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp:    true,
-		TimestampFormat:  "2006-01-02 15:04:05.000",
-		QuoteEmptyFields: true,
-		CallerPrettyfier: func(f *runtime.Frame) (string, string) {
-			filename := filepath.Base(f.File)
-			return "", fmt.Sprintf("%s:%d", filename, f.Line)
-		},
-	})
+	logger.SetFormatter(&customFormatter{})
 
 	// 启用调用者信息
 	logger.SetReportCaller(true)
@@ -76,6 +96,10 @@ func New(cfg *config.AppConfig, baseDir string, opts ...Option) (*Logger, error)
 		logger.SetOutput(file)
 		logger.SetLevel(logrus.InfoLevel)
 	}
+
+	// 使用 MultiWriter
+	mw := io.MultiWriter(writers...)
+	logger.SetOutput(mw)
 
 	// 应用自定义选项
 	for _, opt := range opts {

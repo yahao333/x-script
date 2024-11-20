@@ -1,6 +1,13 @@
 package script
 
 import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+
 	"github.com/yahao333/x-script/pkg/config"
 	"github.com/yahao333/x-script/pkg/logger"
 )
@@ -31,11 +38,22 @@ func (m *Manager) Load() error {
 		"scriptsDir": m.config.ScriptsDir,
 	}).Debug("Loading scripts")
 
-	// ... 实现脚本加载逻辑 ...
+	// 读取 scripts.json
+	configPath := filepath.Join(m.config.ScriptsDir, "scripts.json")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("read scripts config failed: %w", err)
+	}
 
-	m.logger.WithFields(logger.Fields{
-		"scriptCount": len(m.scripts),
-	}).Info("Scripts loaded successfully")
+	var config struct {
+		Scripts []Script `json:"scripts"`
+	}
+	if err := json.Unmarshal(data, &config); err != nil {
+		return fmt.Errorf("parse scripts config failed: %w", err)
+	}
+
+	m.scripts = config.Scripts
+	m.logger.WithField("count", len(m.scripts)).Info("Scripts loaded")
 	return nil
 }
 
@@ -44,8 +62,19 @@ func (m *Manager) Search(keyword string) []Script {
 		"keyword": keyword,
 	}).Debug("Searching scripts")
 
-	// ... 实现脚本搜索逻辑 ...
-	return nil
+	if keyword == "" {
+		return m.scripts
+	}
+
+	var results []Script
+	keyword = strings.ToLower(keyword)
+	for _, script := range m.scripts {
+		if strings.Contains(strings.ToLower(script.Name), keyword) ||
+			strings.Contains(strings.ToLower(script.Keywords), keyword) {
+			results = append(results, script)
+		}
+	}
+	return results
 }
 
 func (m *Manager) Execute(script Script) error {
@@ -54,7 +83,17 @@ func (m *Manager) Execute(script Script) error {
 		"scriptPath": script.Path,
 	}).Info("Executing script")
 
-	// ... 实现脚本执行逻辑 ...
+	m.logger.WithFields(logger.Fields{
+		"name": script.Name,
+		"path": script.Path,
+	}).Info("Executing script")
 
+	cmd := exec.Command(m.config.PythonPath, filepath.Join(m.config.ScriptsDir, script.Path))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("execute script failed: %w", err)
+	}
+
+	m.logger.Info(string(output))
 	return nil
 }

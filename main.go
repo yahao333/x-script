@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/sirupsen/logrus"
@@ -13,6 +14,7 @@ import (
 func main() {
 	// 获取应用数据目录
 	appDataDir := utils.GetAppDataDir()
+	fmt.Println("log appDataDir:", appDataDir)
 
 	// 加载配置
 	cfg, err := config.Load(appDataDir)

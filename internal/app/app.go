@@ -93,12 +93,28 @@ func (app *XScript) createMainWindow() error {
 		Size:     Size{Width: app.config.WindowWidth, Height: app.config.WindowHeight},
 		Layout:   VBox{},
 		Children: []Widget{
-			LineEdit{
-				AssignTo: &app.searchBox,
-				Text:     "",
-				OnTextChanged: func() {
-					// TODO: 实现搜索功能
-					app.logger.Debug("Search text changed: " + app.searchBox.Text())
+			Composite{
+				Layout: HBox{},
+				Children: []Widget{
+					LineEdit{
+						AssignTo: &app.searchBox,
+						Text:     "",
+						OnTextChanged: func() {
+							app.handleSearch()
+						},
+					},
+					PushButton{
+						Text: "▼",
+						OnClicked: func() {
+							app.showScriptList()
+						},
+					},
+					PushButton{
+						Text: "运行",
+						OnClicked: func() {
+							app.runScript()
+						},
+					},
 				},
 			},
 			TextEdit{
@@ -133,6 +149,8 @@ func (app *XScript) createMainWindow() error {
 		}
 	})
 
+	// // 隐藏窗口，等待热键触发
+	// app.window.Hide()
 	return nil
 }
 
@@ -145,7 +163,7 @@ func (app *XScript) createNotifyIcon() error {
 	}
 
 	// 设置图标
-	icon, err := walk.Resources.Icon("icon.ico")
+	icon, err := walk.Resources.Icon("logo.ico")
 	if err != nil {
 		app.logger.WithError(err).Warn("Failed to load icon, using default")
 		icon, _ = walk.NewIconFromResourceId(2) // 使用默认图标
@@ -163,20 +181,25 @@ func (app *XScript) createNotifyIcon() error {
 	if err != nil {
 		return app.logger.LogError(err, "Failed to create context menu")
 	}
-	// app.notifyIcon.ContextMenu().Actions().Add(menu)
 	showAction := walk.NewAction()
-	showAction.SetText("显示")
+	showAction.SetText("Show")
 	showAction.Triggered().Attach(func() {
+		app.logger.Debug("Showing main window")
 		app.window.Show()
 	})
 	menu.Actions().Add(showAction)
 
 	exitAction := walk.NewAction()
-	exitAction.SetText("退出")
+	exitAction.SetText("Exit")
 	exitAction.Triggered().Attach(func() {
+		app.logger.Debug("Exiting application")
 		app.window.Close()
 	})
 	menu.Actions().Add(exitAction)
+
+	for i := 0; i < menu.Actions().Len(); i++ {
+		app.notifyIcon.ContextMenu().Actions().Insert(i, menu.Actions().At(i))
+	}
 
 	return nil
 }
@@ -196,5 +219,28 @@ func (app *XScript) getConfigDir() string {
 func (app *XScript) appendLog(message string) {
 	if app.logView != nil {
 		app.logView.AppendText(message + "\n")
+	}
+}
+
+// 新增的辅助方法
+func (app *XScript) handleSearch() {
+	keyword := app.searchBox.Text()
+	_ = app.scripts.Search(keyword)
+	app.logger.WithField("keyword", keyword).Debug("Searching scripts")
+	// TODO: 显示搜索结果
+}
+
+func (app *XScript) showScriptList() {
+	// TODO: 显示脚本列表下拉框
+	app.logger.Debug("Showing script list")
+}
+
+func (app *XScript) runScript() {
+	keyword := app.searchBox.Text()
+	scripts := app.scripts.Search(keyword)
+	if len(scripts) > 0 {
+		if err := app.scripts.Execute(scripts[0]); err != nil {
+			app.logger.WithError(err).Error("Failed to execute script")
+		}
 	}
 }
