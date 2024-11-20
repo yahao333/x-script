@@ -1,11 +1,12 @@
 package logger
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
+	"sort"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -45,14 +46,38 @@ func (f *customFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	// 格式化时间
 	timestamp := entry.Time.Format("2006-01-02 15:04:05.000")
 
-	// 构建日志消息
-	msg := fmt.Sprintf("time=%s level=%s %s msg=%s\n",
+	// 构造时间戳
+	// 构造日志级别和消息
+	var buffer bytes.Buffer
+	buffer.WriteString(fmt.Sprintf("[%s] [%s] %s %s",
 		timestamp,
-		entry.Level,
+		entry.Level.String(),
 		caller,
-		entry.Message)
+		entry.Message))
 
-	return []byte(msg), nil
+	// 格式化 WithField 数据
+	if len(entry.Data) > 0 {
+		buffer.WriteString(" | Fields: {")
+		// 按照字段名排序，保证一致性
+		keys := make([]string, 0, len(entry.Data))
+		for k := range entry.Data {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+
+		// 拼接键值对
+		for i, k := range keys {
+			buffer.WriteString(fmt.Sprintf("%s: %v", k, entry.Data[k]))
+			if i < len(keys)-1 {
+				buffer.WriteString(", ")
+			}
+		}
+		buffer.WriteString("}")
+	}
+
+	// 添加换行符
+	buffer.WriteString("\n")
+	return buffer.Bytes(), nil
 }
 
 // New 创建新的日志实例
@@ -84,17 +109,7 @@ func New(cfg *config.AppConfig, baseDir string, opts ...Option) (*Logger, error)
 	}
 
 	// 设置默认格式化器
-	// logger.SetFormatter(&customFormatter{})
-	logger.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp:   true,
-		TimestampFormat: "2006-01-02 15:04:05.000",
-		DisableColors:   true,
-		DisableQuote:    true,
-		CallerPrettyfier: func(f *runtime.Frame) (string, string) {
-			filename := filepath.Base(f.File)
-			return fmt.Sprintf("%s:%d", filename, f.Line), ""
-		},
-	})
+	logger.SetFormatter(&customFormatter{})
 
 	// 启用调用者信息
 	logger.SetReportCaller(true)
