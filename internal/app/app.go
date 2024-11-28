@@ -47,15 +47,16 @@ var showHelpAction *walk.Action
 
 // 辅助函数：从窗口句柄获取窗口对象
 type XScript struct {
-	window     *walk.MainWindow
-	notifyIcon *walk.NotifyIcon
-	searchBox  *walk.LineEdit
-	logView    *walk.TextEdit
-	config     *config.AppConfig
-	logger     *logger.Logger
-	scripts    *script.Manager
-	resultList *walk.ListBox
-	hotkey     *walk.GlobalHotKey
+	window             *walk.MainWindow
+	notifyIcon         *walk.NotifyIcon
+	searchBox          *walk.LineEdit
+	logView            *walk.TextEdit
+	config             *config.AppConfig
+	logger             *logger.Logger
+	scripts            *script.Manager
+	resultList         *walk.ListBox
+	hotkey             *walk.GlobalHotKey
+	selectedScriptName string
 }
 
 // 创建 XScript 实例
@@ -363,8 +364,8 @@ func (app *XScript) handleSearch() {
 	// Display search results in the log view
 	app.logView.SetText("") // Clear previous results
 	for _, script := range results {
-		// app.logView.AppendText(fmt.Sprintf("Found script: %s\r\n", script.Name))
 		app.appendLog(fmt.Sprintf("Found script: %s\r\n", script.Name), true)
+		app.logger.WithField("script", script.Name).Debug("Found script")
 	}
 
 	// Update list model
@@ -438,6 +439,9 @@ func (app *XScript) showScriptList() {
 // 运行脚本
 func (app *XScript) runScript() {
 	keyword := app.searchBox.Text()
+	if keyword == "" {
+		keyword = app.selectedScriptName
+	}
 	scripts := app.scripts.Search(keyword)
 
 	if len(scripts) == 0 {
@@ -522,8 +526,10 @@ func (app *XScript) runSelectedScript() {
 	selectedName := app.resultList.Model().([]string)[app.resultList.CurrentIndex()]
 	results := app.scripts.Search(selectedName)
 
+	app.logger.WithField("selected script", selectedName).WithField("count", len(results)).Debug("Running selected script")
 	if len(results) > 0 {
-		// app.window.Hide()
+		// 设置选中的脚本名称到搜索框
+		app.selectedScriptName = selectedName
 		app.runScript() // 使用当前搜索框中的文本执行脚本
 	}
 }

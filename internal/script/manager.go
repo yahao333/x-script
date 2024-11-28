@@ -7,7 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/yahao333/x-script/pkg/config"
 	"github.com/yahao333/x-script/pkg/logger"
@@ -16,10 +18,11 @@ import (
 // 添加一个回调函数类型
 type OutputCallback func(string)
 type Script struct {
-	Name        string `json:"name"`
-	Path        string `json:"path"`
-	Description string `json:"description"`
-	Keywords    string `json:"keywords"`
+	Name        string    `json:"name"`
+	Path        string    `json:"path"`
+	Description string    `json:"description"`
+	Keywords    string    `json:"keywords"`
+	LastRunTime time.Time `json:"last_run_time"`
 }
 
 type Manager struct {
@@ -66,18 +69,39 @@ func (m *Manager) Search(keyword string) []Script {
 		"keyword": keyword,
 	}).Debug("Searching scripts")
 
-	if keyword == "" {
-		return m.scripts
-	}
-
 	var results []Script
-	keyword = strings.ToLower(keyword)
-	for _, script := range m.scripts {
-		if strings.Contains(strings.ToLower(script.Name), keyword) ||
-			strings.Contains(strings.ToLower(script.Keywords), keyword) {
-			results = append(results, script)
+	if keyword == "" {
+		// 复制所有脚本
+		results = make([]Script, len(m.scripts))
+		copy(results, m.scripts)
+	} else {
+		// 搜索匹配的脚本
+		keyword = strings.ToLower(keyword)
+		for _, script := range m.scripts {
+			if strings.Contains(strings.ToLower(script.Name), keyword) ||
+				strings.Contains(strings.ToLower(script.Keywords), keyword) {
+				results = append(results, script)
+			}
 		}
 	}
+
+	// 按最后运行时间排序
+	sort.Slice(results, func(i, j int) bool {
+		// 如果两个脚本都没有运行过（零值），按名称排序
+		if results[i].LastRunTime.IsZero() && results[j].LastRunTime.IsZero() {
+			return results[i].Name < results[j].Name
+		}
+		// 未运行过的脚本放在后面
+		if results[i].LastRunTime.IsZero() {
+			return false
+		}
+		if results[j].LastRunTime.IsZero() {
+			return true
+		}
+		// 按最后运行时间降序排序（最近的在前面）
+		return results[i].LastRunTime.After(results[j].LastRunTime)
+	})
+
 	return results
 }
 
@@ -85,11 +109,6 @@ func (m *Manager) Execute(script Script, callback OutputCallback) error {
 	m.logger.WithFields(logger.Fields{
 		"scriptName": script.Name,
 		"scriptPath": script.Path,
-	}).Info("Executing script")
-
-	m.logger.WithFields(logger.Fields{
-		"name": script.Name,
-		"path": script.Path,
 	}).Info("Executing script")
 
 	// 创建命令
@@ -149,6 +168,40 @@ func (m *Manager) Execute(script Script, callback OutputCallback) error {
 			callback(output)
 		}
 	}
+
+	// 更新最后运行时间
+	for i := range m.scripts {
+		if m.scripts[i].Name == script.Name {
+			m.scripts[i].LastRunTime = time.Now()
+			// 保存到文件
+			if err := m.saveScripts(); err != nil {
+				m.logger.WithError(err).Error("Failed to save scripts")
+			}
+			break
+		}
+	}
+
+	return nil
+}
+
+// 添加保存脚本配置的函数
+func (m *Manager) saveScripts() error {
+	config := struct {
+		Scripts []Script `json:"scripts"`
+	}{
+		Scripts: m.scripts,
+	}
+
+	data, err := json.MarshalIndent(config, "", "    ")
+	if err != nil {
+		return fmt.Errorf("marshal scripts config failed: %w", err)
+	}
+
+	configPath := filepath.Join(m.config.ScriptsDir, "scripts.json")
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		return fmt.Errorf("write scripts config failed: %w", err)
+	}
+
 	return nil
 }
 
