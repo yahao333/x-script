@@ -146,21 +146,24 @@ func (app *XScript) createMainWindow() error {
 					LineEdit{
 						AssignTo: &app.searchBox,
 						Text:     "",
+						Visible:  false,
 						OnTextChanged: func() {
 							app.handleSearch()
 						},
 						OnKeyDown: func(key walk.Key) {
-							// app.handleSearchKeyDown(key)
+							app.handleSearchKeyDown(key)
 						},
 					},
 					PushButton{
-						Text: "▼",
+						Text:    "▼",
+						Visible: false,
 						OnClicked: func() {
 							app.showScriptList()
 						},
 					},
 					PushButton{
-						Text: "运行",
+						Text:    "运行",
+						Visible: false,
 						OnClicked: func() {
 							app.runScript()
 						},
@@ -214,6 +217,12 @@ func (app *XScript) createMainWindow() error {
 	return nil
 }
 
+func (app *XScript) clearSearchBox() {
+	if app.searchBox != nil {
+		app.searchBox.SetText("")
+	}
+}
+
 func (app *XScript) focus2ListBox() {
 	// 设置窗口焦点
 	app.window.SetFocus()
@@ -224,7 +233,7 @@ func (app *XScript) focus2ListBox() {
 	}
 
 	// 清空搜索框文本
-	app.searchBox.SetText("")
+	app.clearSearchBox()
 }
 
 func (app *XScript) showWindow() {
@@ -514,7 +523,7 @@ func (app *XScript) runSelectedScript() {
 	results := app.scripts.Search(selectedName)
 
 	if len(results) > 0 {
-		app.window.Hide()
+		// app.window.Hide()
 		app.runScript() // 使用当前搜索框中的文本执行脚本
 	}
 }
