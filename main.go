@@ -41,4 +41,5 @@ func main() {
 		logger.WithError(err).Error("Application failed to start")
 		log.Fatal(err)
 	}
+
 }
