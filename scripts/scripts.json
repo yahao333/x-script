@@ -8,6 +8,13 @@
             "last_run_time": "2024-11-28T14:01:35.3595555+08:00"
         },
         {
+            "name": "build_tools",
+            "path": "build_tools.py",
+            "description": "编译scts-backend的工具",
+            "keywords": "build, tools",
+            "last_run_time": "2024-11-28T14:01:35.3595555+08:00"
+        },
+        {
             "name": "test2",
             "path": "demo.py",
             "description": "一个简单的测试脚本",
