@@ -25,3 +25,15 @@ go.work.sum
 .env
 
 /build/
+
+# 忽略所有.pyc文件
+*.pyc
+/scripts/*.png
+/scripts/*.jpg
+/scripts/*.jpeg
+/scripts/*.gif
+/scripts/*.bmp
+/scripts/*.tiff
+/scripts/*.ico
+/scripts/*.webp
+
