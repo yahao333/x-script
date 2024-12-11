@@ -3,7 +3,7 @@
 import time
 import sys
 def main():
-    for i in range(5):
+    for i in range(2):
         print(f"Hello, World! {i}")
         sys.stdout.flush()
         time.sleep(1)

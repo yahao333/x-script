@@ -8,6 +8,7 @@ import json
 import re
 import time
 from win10toast_click import ToastNotifier
+import winreg
 
 def notify_result(success, message=""):
     """Send Windows notification for build result"""
@@ -72,6 +73,17 @@ def log(message):
     print(message)
     sys.stdout.flush()
 
+def get_wx_version():
+    """获取微信版本号"""
+
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Tencent\WXWork", 0, winreg.KEY_READ) as key:
+            return winreg.QueryValueEx(key, "Version")[0]
+    except Exception as e:
+        print("打开注册表失败：{}".format(e))
+        return None
+
+
 def main():
     try:
         check_environment()
@@ -80,5 +92,6 @@ def main():
         log(e)
 
 if __name__ == "__main__":
-    main()
+    wx_version = get_wx_version()
+    log(wx_version)
 
